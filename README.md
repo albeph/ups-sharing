@@ -1,4 +1,4 @@
-# Network UPS Tools (NUT) Server - Docker with TLS & Universal SMTP Alerts
+# Network UPS Tools (NUT) Server - with TLS & Universal SMTP Alerts
 
 A universal, secure, and minimal (~25 MB disk footprint, ~7 MB RAM usage) solution based on **Alpine Linux** to share any USB-connected Uninterruptible Power Supply (UPS) (APC, Eaton, CyberPower, etc.) over the local network using **Network UPS Tools (NUT)**.
 
@@ -194,11 +194,14 @@ To safely shut down other machines (Proxmox nodes, TrueNAS systems, Home Assista
 
 * **Inspect all live UPS telemetry metrics (over SSL)**:
   ```bash
-  docker compose exec nut-server upsc apc950@localhost
-  ```
-  *(Replace `apc950` with your configured `UPS_NAME` if different)*.
+  # Universal command (automatically uses UPS_NAME configured in configs/.env):
+  docker compose exec nut-server /bin/sh -c 'upsc $UPS_NAME@localhost'
 
-* **List all detected UPS devices**:
+  # Or specifying your UPS identifier explicitly (e.g. eaton, cyberpower, ups, upc):
+  docker compose exec nut-server upsc <UPS_NAME>@localhost
+  ```
+
+* **List all configured UPS devices on the server**:
   ```bash
   docker compose exec nut-server upsc -l localhost
   ```

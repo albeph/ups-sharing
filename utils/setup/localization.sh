@@ -6,7 +6,7 @@
 # =====================================================================
 
 configure_localization() {
-    echo -e "${BOLD}--- 2. Localization & Display Settings ---${RESET}"
+    print_step "2/7" "Localization & Display Labels" "Email notification language and friendly naming"
 
     # Scan image/alerts/ to discover available language files (*.lang)
     local lang_files=("$ALERTS_DIR"/*.lang)
@@ -47,5 +47,4 @@ configure_localization() {
 
     # Friendly name for email notifications
     prompt_text "Friendly name for email notifications (e.g. Home UPS)" UPS_FRIENDLY_NAME "Home UPS"
-    echo ""
 }

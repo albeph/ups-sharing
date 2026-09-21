@@ -23,16 +23,54 @@ cursor_show() {
     tput cnorm 2>/dev/null || printf '\033[?25h'
 }
 
-# Trap to restore cursor if user interrupts (Ctrl+C)
-trap 'cursor_show' EXIT INT TERM
+on_interrupt() {
+    cursor_show
+    echo ""
+    echo -e "  ${YELLOW}Setup cancelled by user.${RESET}"
+    echo ""
+    exit 130
+}
+
+on_terminate() {
+    cursor_show
+    echo ""
+    exit 143
+}
+
+# Trap to restore cursor on normal exit, and cleanly terminate on Ctrl+C / SIGTERM
+trap 'cursor_show' EXIT
+trap 'on_interrupt' INT
+trap 'on_terminate' TERM
+
+# ---------------------------------------------------------------------
+# print_step: Formatted step banner with clear visual separation
+# ---------------------------------------------------------------------
+print_step() {
+    local step_num="$1"
+    local title="$2"
+    local subtitle="${3:-}"
+
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "  ${BOLD}${CYAN}Step ${step_num}: ${title}${RESET}"
+    if [ -n "$subtitle" ]; then
+        echo -e "  ${DIM}${subtitle}${RESET}"
+    fi
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo ""
+}
+
+# ---------------------------------------------------------------------
+# print_info: Formatted contextual note with breathing room
+# ---------------------------------------------------------------------
+print_info() {
+    local msg="$1"
+    echo -e "  ${CYAN}ℹ${RESET}  ${DIM}${msg}${RESET}\n"
+}
 
 # ---------------------------------------------------------------------
 # menu_select: Interactive arrow-key navigation with Enter confirmation
 # ---------------------------------------------------------------------
-# Usage:
-#   menu_select "Choose an option:" RESULT_VAR "Option 1" "Option 2" "Option 3"
-# Result:
-#   RESULT_VAR receives the 0-based selected index
 menu_select() {
     local prompt="$1"
     local out_var="$2"
@@ -41,14 +79,14 @@ menu_select() {
     local num_options=${#options[@]}
     local selected=0
 
-    echo -e "${BOLD}${prompt}${RESET}"
+    echo -e "  ${BOLD}${prompt}${RESET}\n"
 
     # Fallback for non-interactive environments (CI, pipes, non-TTY)
     if [ ! -t 0 ]; then
         for i in "${!options[@]}"; do
-            echo "  $((i+1))) ${options[i]}"
+            echo "    $((i+1))) ${options[i]}"
         done
-        echo -e "  ${GREEN}✔ Default selected: ${options[0]}${RESET}"
+        echo -e "\n  ${GREEN}✔ Selected: ${options[0]}${RESET}\n"
         eval "$out_var=0"
         return 0
     fi
@@ -59,9 +97,9 @@ menu_select() {
         local cur=$1
         for i in "${!options[@]}"; do
             if [ "$i" -eq "$cur" ]; then
-                printf "\033[2K\r  ${CYAN}${BOLD}❯ %s${RESET}\n" "${options[i]}"
+                printf "\033[2K\r    ${CYAN}${BOLD}❯ %s${RESET}\n" "${options[i]}"
             else
-                printf "\033[2K\r    ${DIM}%s${RESET}\n" "${options[i]}"
+                printf "\033[2K\r      ${DIM}%s${RESET}\n" "${options[i]}"
             fi
         done
     }
@@ -90,6 +128,9 @@ menu_select() {
             "") # Enter key
                 break
                 ;;
+            $'\x03'|[qQ]) # Ctrl+C or 'q'
+                on_interrupt
+                ;;
             [1-9]) # Direct number selection
                 local num=$((key - 1))
                 if [ "$num" -lt "$num_options" ]; then
@@ -106,17 +147,15 @@ menu_select() {
         printf "\033[2K\r\033[1B"
     done
     printf "\033[%dA" "$num_options"
-    printf "\033[2K\r  ${GREEN}${BOLD}✔ %s${RESET}\n\n" "${options[selected]}"
+    printf "\033[2K\r  ${GREEN}${BOLD}✔ Selected: %s${RESET}\n\n" "${options[selected]}"
 
     cursor_show
     eval "$out_var=$selected"
 }
 
 # ---------------------------------------------------------------------
-# prompt_text: Text input with default value
+# prompt_text: Text input with default value and clean spacing
 # ---------------------------------------------------------------------
-# Usage:
-#   prompt_text "Friendly name" RESULT_VAR "Home UPS"
 prompt_text() {
     local label="$1"
     local out_var="$2"
@@ -124,47 +163,50 @@ prompt_text() {
     local input=""
 
     if [ -n "$default_val" ]; then
-        read -rp "$(echo -e "${BOLD}${label}${RESET} [${default_val}]: ")" input
-        input="${input:-$default_val}"
+        printf "  %b%s%b [%b%s%b]: " "${BOLD}" "$label" "${RESET}" "${CYAN}" "$default_val" "${RESET}"
     else
-        read -rp "$(echo -e "${BOLD}${label}${RESET}: ")" input
+        printf "  %b%s%b: " "${BOLD}" "$label" "${RESET}"
     fi
+    read -r input
+    input="${input:-$default_val}"
+    echo ""
     eval "$out_var=\"\$input\""
 }
 
 # ---------------------------------------------------------------------
-# prompt_secret: Masked silent password input
+# prompt_secret: Masked silent password input with clean spacing
 # ---------------------------------------------------------------------
-# Usage:
-#   prompt_secret "Enter password" RESULT_VAR "optional_default"
 prompt_secret() {
     local label="$1"
     local out_var="$2"
     local default_val="${3:-}"
     local input=""
 
-    read -rsp "$(echo -e "${BOLD}${label}${RESET}: ")" input
+    printf "  %b%s%b: " "${BOLD}" "$label" "${RESET}"
+    read -rs input
     echo ""
 
     if [ -z "$input" ] && [ -n "$default_val" ]; then
-        echo -e "  ${YELLOW}⚠️  No password entered. Using temporary default.${RESET}"
+        echo -e "  ${YELLOW}⚠️  No password entered. Using temporary default.${RESET}\n"
         input="$default_val"
+    else
+        echo ""
     fi
     eval "$out_var=\"\$input\""
 }
 
 # ---------------------------------------------------------------------
-# prompt_confirm: Simple Yes/No prompt with default
+# prompt_confirm: Simple Yes/No prompt with default and clean spacing
 # ---------------------------------------------------------------------
-# Usage:
-#   prompt_confirm "Is this your UPS device?" RESULT_VAR "Y"
 prompt_confirm() {
     local label="$1"
     local out_var="$2"
     local default_yn="${3:-Y}"
     local input=""
 
-    read -rp "$(echo -e "${BOLD}${label}${RESET} (Y/n) [${default_yn}]: ")" input
+    printf "  %b%s%b (Y/n) [%b%s%b]: " "${BOLD}" "$label" "${RESET}" "${CYAN}" "$default_yn" "${RESET}"
+    read -r input
+    echo ""
     input="${input:-$default_yn}"
 
     case "$input" in

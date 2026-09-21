@@ -7,7 +7,7 @@
 # =====================================================================
 
 save_secrets() {
-    echo -e "${BOLD}--- 5. Saving Docker Secrets ---${RESET}"
+    print_step "5/7" "Saving Docker Secrets" "Writing credentials with Linux DAC permissions (root:root 400)"
 
     # Ensure secrets directory exists with traversal permissions (755)
     mkdir -p "$SECRETS_DIR"
@@ -28,7 +28,6 @@ save_secrets() {
         chown "$SUDO_USER" "$SECRETS_DIR" "$SECRETS_DIR/.gitkeep" 2>/dev/null || true
     fi
 
-    echo -e "  ${GREEN}✔${RESET} Saved ${BOLD}nut_password.txt${RESET} (chmod 400 root:root)"
+    echo -e "  ${GREEN}✔${RESET} Saved ${BOLD}nut_password.txt${RESET}  (chmod 400 root:root)"
     echo -e "  ${GREEN}✔${RESET} Saved ${BOLD}smtp_password.txt${RESET} (chmod 400 root:root)"
-    echo ""
 }

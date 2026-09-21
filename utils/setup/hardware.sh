@@ -6,7 +6,7 @@
 # =====================================================================
 
 detect_ups_hardware() {
-    echo -e "${BOLD}--- 1. UPS Hardware Detection ---${RESET}"
+    print_step "1/7" "UPS Hardware Detection" "Scanning USB bus for connected UPS devices"
 
     # Scan the USB bus with 'lsusb' for connected UPS models (APC, Eaton, CyberPower, etc.)
     local detected_usb
@@ -29,9 +29,8 @@ detect_ups_hardware() {
             *)                                   UPS_NAME="ups" ;;
         esac
 
-        echo -e "${GREEN}✅ Found connected UPS:${RESET} ${BOLD}$device_label${RESET}"
-        echo -e "   (Identifier: ${CYAN}$UPS_NAME${RESET})"
-        echo ""
+        echo -e "  ${GREEN}✅ Found connected UPS:${RESET} ${BOLD}$device_label${RESET}"
+        echo -e "     (Identifier: ${CYAN}${BOLD}$UPS_NAME${RESET})\n"
 
         local is_correct
         prompt_confirm "Is this your UPS device?" is_correct "Y"
@@ -39,8 +38,7 @@ detect_ups_hardware() {
             prompt_text "Enter custom internal identifier for NUT" UPS_NAME "$UPS_NAME"
         fi
     else
-        echo -e "${YELLOW}ℹ️  No USB UPS detected. Ensure the device is connected.${RESET}"
+        echo -e "  ${YELLOW}ℹ️  No USB UPS detected. Ensure the device is connected.${RESET}\n"
         prompt_text "Enter internal identifier for NUT" UPS_NAME "ups"
     fi
-    echo ""
 }

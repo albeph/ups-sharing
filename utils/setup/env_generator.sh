@@ -6,7 +6,7 @@
 # =====================================================================
 
 generate_env_file() {
-    echo -e "${BOLD}--- 6. Generating configs/.env ---${RESET}"
+    print_step "6/7" "Generating Runtime Environment" "Writing non-sensitive variables to configs/.env"
 
     cat <<EOF > "$ENV_FILE"
 # =====================================================================
@@ -43,11 +43,10 @@ EOF
     chmod 600 "$ENV_FILE"
 
     echo -e "  ${GREEN}✔${RESET} Generated ${BOLD}$ENV_FILE${RESET} (chmod 600)"
-    echo ""
 }
 
 generate_ups_conf() {
-    echo -e "${BOLD}--- 7. Generating configs/ups.conf ---${RESET}"
+    print_step "7/7" "Generating Driver Configuration" "Synchronizing driver and vendorid to configs/ups.conf"
 
     local vendor_line=""
     if [ -n "$VENDOR_ID" ]; then
@@ -79,5 +78,4 @@ EOF
     chmod 644 "$UPS_CONF_FILE"
 
     echo -e "  ${GREEN}✔${RESET} Generated ${BOLD}$UPS_CONF_FILE${RESET} (chmod 644)"
-    echo ""
 }

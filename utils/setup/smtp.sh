@@ -7,8 +7,7 @@
 # =====================================================================
 
 configure_smtp_provider() {
-    echo -e "${BOLD}--- 4. Email Alerts & SMTP Provider ---${RESET}"
-    echo "Configure an outgoing SMTP service to receive blackout and alert emails."
+    print_step "4/7" "Email Alerts & SMTP Provider" "Outgoing mail service for blackout and status notifications"
 
     local -a conf_files=()
     local -a conf_ids=()
@@ -43,7 +42,7 @@ configure_smtp_provider() {
     local chosen_id="${conf_ids[selected_smtp_idx]}"
 
     if [ "$chosen_id" = "none" ]; then
-        echo -e "  ${YELLOW}ℹ️  Email alerts will be disabled.${RESET}"
+        echo -e "  ${YELLOW}ℹ️  Email alerts will be disabled.${RESET}\n"
         SMTP_PROVIDER="none"
         SMTP_HOST=""
         SMTP_PORT=""
@@ -53,17 +52,16 @@ configure_smtp_provider() {
         SMTP_USER=""
         SMTP_PASSWORD=""
         NOTIFICATION_EMAIL=""
-        echo ""
         return 0
     fi
 
     if [ "$chosen_id" = "custom" ]; then
         SMTP_PROVIDER="custom"
         prompt_text "SMTP Host (e.g. mail.domain.com)" SMTP_HOST "mail.domain.com"
-        prompt_text "SMTP Port [587]" SMTP_PORT "587"
-        prompt_text "TLS (on/off) [on]" SMTP_TLS "on"
-        prompt_text "STARTTLS (on/off) [on]" SMTP_STARTTLS "on"
-        prompt_text "Authentication (on/off) [on]" SMTP_AUTH "on"
+        prompt_text "SMTP Port" SMTP_PORT "587"
+        prompt_text "TLS (on/off)" SMTP_TLS "on"
+        prompt_text "STARTTLS (on/off)" SMTP_STARTTLS "on"
+        prompt_text "Authentication (on/off)" SMTP_AUTH "on"
 
         prompt_text "Sender email address (from)" SMTP_USER ""
         if [ "$SMTP_AUTH" = "on" ]; then
@@ -73,7 +71,6 @@ configure_smtp_provider() {
             SMTP_PASSWORD=""
         fi
         prompt_text "Recipient email for notifications" NOTIFICATION_EMAIL "$SMTP_USER"
-        echo ""
         return 0
     fi
 
@@ -96,7 +93,7 @@ configure_smtp_provider() {
 
     if [ "$req_pw" = "yes" ]; then
         if [ -n "$pw_help" ]; then
-            echo -e "  ${DIM}ℹ️  $pw_help${RESET}"
+            print_info "$pw_help"
         fi
         prompt_secret "Password / App Password for $SMTP_USER" SMTP_PASSWORD ""
         SMTP_PASSWORD="$(echo "$SMTP_PASSWORD" | tr -d ' ')"
@@ -105,5 +102,4 @@ configure_smtp_provider() {
     fi
 
     prompt_text "Recipient email for notifications" NOTIFICATION_EMAIL "$SMTP_USER"
-    echo ""
 }

@@ -24,8 +24,10 @@ set -e
 
 # 1. Enforce root privileges for Docker Secrets file DAC permissions
 if [ "$(id -u)" -ne 0 ]; then
+    echo ""
     echo "❌ Error: This script must be run with root privileges."
     echo "   Please run: sudo $0"
+    echo ""
     exit 1
 fi
 
@@ -50,12 +52,12 @@ source "$MODULES_DIR/secrets.sh"
 source "$MODULES_DIR/env_generator.sh"
 
 # 4. Display Welcome Header
-echo -e "${CYAN}${BOLD}=====================================================================${RESET}"
-echo -e "${CYAN}${BOLD}     ⚡ NUT SERVER CONFIGURATION WIZARD (Network UPS Tools) ⚡     ${RESET}"
-echo -e "${CYAN}${BOLD}=====================================================================${RESET}"
-echo "This wizard will configure your UPS hardware, client credentials,"
-echo "and email notifications with secure Docker Secrets."
 echo ""
+echo -e "${CYAN}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
+echo -e "${CYAN}${BOLD}┃       NUT SERVER CONFIGURATION WIZARD (Network UPS Tools)   ┃${RESET}"
+echo -e "${CYAN}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
+echo -e "  This wizard will configure your UPS hardware, client credentials,"
+echo -e "  and email notifications with secure Docker Secrets."
 
 # 5. Run modular configuration steps
 detect_ups_hardware
@@ -67,22 +69,21 @@ generate_env_file
 generate_ups_conf
 
 # 6. Display Setup Summary & Next Steps
-echo -e "${GREEN}${BOLD}=====================================================================${RESET}"
-echo -e "${GREEN}${BOLD}🎉 Setup complete! Configuration successfully synchronized:${RESET}"
-echo -e "   - Passwords (Docker Secrets): ${BOLD}$SECRETS_DIR/${RESET}"
-echo -e "     * nut_password.txt   (root:root 400)"
-echo -e "     * smtp_password.txt  (root:root 400)"
-echo -e "   - Non-sensitive variables:    ${BOLD}$ENV_FILE${RESET}"
-echo -e "   - Driver configuration:       ${BOLD}$UPS_CONF_FILE${RESET} ([$UPS_NAME])"
-echo -e "${GREEN}${BOLD}=====================================================================${RESET}"
+echo -e "${GREEN}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
+echo -e "${GREEN}${BOLD}┃       🎉 Setup Complete! Configuration Synchronized        ┃${RESET}"
+echo -e "${GREEN}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
+echo -e "  • Docker Secrets:      ${BOLD}$SECRETS_DIR/${RESET} (root:root 400)"
+echo -e "  • Environment File:    ${BOLD}$ENV_FILE${RESET} (chmod 600)"
+echo -e "  • Driver Config:       ${BOLD}$UPS_CONF_FILE${RESET} ([$UPS_NAME])"
 echo ""
 echo -e "${BOLD}Next steps:${RESET}"
-echo "  1. Start or restart the NUT server:"
+echo ""
+echo -e "  1. Start or restart the NUT server:"
 echo -e "     ${CYAN}docker compose up -d --build${RESET}"
 echo ""
-echo "  2. Test email alert notifications:"
+echo -e "  2. Test email alert notifications:"
 echo -e "     ${CYAN}./utils/test_email.sh${RESET}"
 echo ""
-echo "  3. Query live UPS metrics:"
+echo -e "  3. Query live UPS metrics:"
 echo -e "     ${CYAN}docker compose exec nut-server upsc $UPS_NAME@localhost${RESET}"
-echo -e "${GREEN}${BOLD}=====================================================================${RESET}"
+echo ""

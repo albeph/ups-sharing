@@ -6,10 +6,8 @@
 # =====================================================================
 
 configure_nut_client() {
-    echo -e "${BOLD}--- 3. NUT Client Credentials (API / upsmon) ---${RESET}"
-    echo "Network clients (Home Assistant, NAS, etc.) use these credentials to authenticate."
+    print_step "3/7" "NUT Client Credentials (API / upsmon)" "Authentication for network clients (Home Assistant, Proxmox, NAS)"
 
     prompt_text "NUT client username" API_USER "upsmon"
     prompt_secret "Password for NUT user ($API_USER)" API_PASSWORD "upspassword"
-    echo ""
 }

@@ -1,0 +1,37 @@
+# =====================================================================
+# DOCKER COMPOSE CONFIGURATION (docker-compose.yml)
+# Service definition for the NUT server container with non-privileged
+# USB device pass-through, Docker Secrets, and configuration mounts.
+# =====================================================================
+
+services:
+  nut-server:
+    build:
+      context: ./image
+      dockerfile: Dockerfile
+    image: ${IMAGE_NAME:-nut-server:local}
+    container_name: ${CONTAINER_NAME:-nut-server}
+    restart: unless-stopped
+    # Linux Kernel cgroup protection (major 189 = USB devices):
+    # allows dynamic re-enumeration without privileged mode or host udev scripts
+    device_cgroup_rules:
+      - 'c 189:* rmw'
+    ports:
+      - "3493:3493"
+    env_file:
+      - ./configs/.env
+    secrets:
+      - nut_password
+      - smtp_password
+    volumes:
+      # Dynamic USB bus pass-through
+      - /dev/bus/usb:/dev/bus/usb
+      # NUT configuration folder mount
+      - ./configs:/etc/nut-config:ro
+
+
+secrets:
+  nut_password:
+    file: ./configs/secrets/nut_password.txt
+  smtp_password:
+    file: ./configs/secrets/smtp_password.txt

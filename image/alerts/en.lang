@@ -1,0 +1,68 @@
+# =====================================================================
+# ENGLISH NOTIFICATION DICTIONARY (en.lang)
+# Pure key-value associations for English email subjects, event messages,
+# telemetry labels, and NUT operational status codes.
+# =====================================================================
+
+# Email Notification Subjects
+SUBJECT_BLACKOUT="🔌 [%s] POWER OUTAGE (Running on Battery)"
+SUBJECT_POWER_RESTORED="💡 [%s] UTILITY POWER RESTORED"
+SUBJECT_BATT_70="📉 [%s] Battery Dropped to 70%%"
+SUBJECT_BATT_50="⚠️ [%s] PRE-ALARM: Battery at 50%%"
+SUBJECT_BATT_35="🚨 [%s] CRITICAL ALARM: Battery at 35%%"
+SUBJECT_FSD="🛑 [%s] SHUTDOWN COMMAND INITIATED (FSD)"
+SUBJECT_OVERLOAD="⚠️ [%s] ALARM: ELECTRICAL OVERLOAD"
+SUBJECT_OVERLOAD_CLEARED="✅ [%s] Electrical Overload Cleared"
+SUBJECT_TEST="🧪 [TEST] Test Notification: %s"
+
+# Event-specific Notification Bodies
+MSG_BLACKOUT="Warning: Main utility power interruption detected!
+The device has switched to battery power."
+
+MSG_POWER_RESTORED="Mains voltage has returned to normal. The UPS has resumed ONLINE mode."
+LABEL_OUTAGE_DURATION="Outage duration: approximately %s minutes (%s seconds)"
+
+MSG_BATT_70="Runtime Advisory: UPS battery level has dropped to 70%%."
+
+MSG_BATT_50="Autonomy Pre-Alarm: Battery charge is down to 50%%.
+Prepare connected devices for shutdown if power is not restored shortly."
+
+MSG_BATT_35="CRITICAL ALARM: UPS battery level is down to 35%%!
+Connected servers and clients will initiate safe shutdown sequences shortly."
+
+MSG_FSD="A Forced Shutdown (FSD) command has been issued.
+All network clients and systems connected to this UPS are shutting down safely."
+
+MSG_OVERLOAD="WARNING: Electrical overload detected!
+Power draw from connected devices exceeds maximum rated capacity.
+
+Recommended Action:
+Disconnect non-essential loads immediately to prevent UPS thermal shutdown protection!"
+
+MSG_OVERLOAD_CLEARED="UPS load has returned to normal safe operating levels."
+
+MSG_TEST="This is a manually triggered test email to verify that the notification delivery system is operational.
+If you received this message, the SMTP notification pipeline is working properly at 100%!"
+
+# Standard Telemetry Details Block Labels
+LABEL_DETAILS="Details:"
+LABEL_TIMESTAMP="Timestamp"
+LABEL_STATUS="UPS Status"
+LABEL_BATTERY="Battery Level"
+LABEL_RUNTIME="Estimated Runtime"
+LABEL_LOAD="Current Load"
+LABEL_VOLTAGE="Input Voltage"
+UNIT_MINUTES="minutes"
+UNIT_SECONDS="sec"
+
+# NUT Operational Status Code Translations
+STATUS_OL="OL (On Line - Mains power present)"
+STATUS_OB="OB (On Battery - Blackout in progress)"
+STATUS_CHRG="CHRG (Charging)"
+STATUS_DISCHRG="DISCHRG (Discharging)"
+STATUS_LB="LB (Low Battery - Battery depleted soon)"
+STATUS_FSD="FSD (Forced ShutDown in progress)"
+STATUS_OVER="OVER (Overload detected)"
+STATUS_RB="RB (Replace Battery required)"
+STATUS_CAL="CAL (Calibration in progress)"
+STATUS_OFF="OFF (Offline / Powered off)"

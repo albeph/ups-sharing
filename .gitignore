@@ -1,0 +1,30 @@
+# =====================================================================
+# GIT IGNORE RULES (.gitignore)
+# Prevents sensitive environment credentials, secrets, and transient
+# runtime logs from being committed to version control.
+# =====================================================================
+
+# Local environment files with actual credentials (NEVER commit to git!)
+.env
+configs/.env
+**/.env
+
+# Certificates, private keys, and local credentials
+*.key
+*.pem
+*.crt
+*.plain
+
+# Docker secrets directory: track folder via .gitkeep, ignore actual secrets
+secrets/*
+!secrets/.gitkeep
+configs/secrets/*
+!configs/secrets/.gitkeep
+
+# Runtime logs and OS metadata
+*.log
+.DS_Store
+
+ups.conf
+
+tmp/

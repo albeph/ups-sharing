@@ -1,0 +1,68 @@
+# =====================================================================
+# ITALIAN NOTIFICATION DICTIONARY (it.lang)
+# Pure key-value associations for Italian email subjects, event messages,
+# telemetry labels, and NUT operational status codes.
+# =====================================================================
+
+# Email Notification Subjects
+SUBJECT_BLACKOUT="🔌 [%s] INTERRUZIONE CORRENTE (Black-out in corso)"
+SUBJECT_POWER_RESTORED="💡 [%s] CORRENTE ELETTRICA RIPRISTINATA"
+SUBJECT_BATT_70="📉 [%s] Batteria scesa al 70%%"
+SUBJECT_BATT_50="⚠️ [%s] PRE-ALLARME: Batteria al 50%%"
+SUBJECT_BATT_35="🚨 [%s] ALLARME CRITICO: Batteria al 35%%"
+SUBJECT_FSD="🛑 [%s] COMANDO DI SPEGNIMENTO INIZIATO (FSD)"
+SUBJECT_OVERLOAD="⚠️ [%s] ALLARME: SOVRACCARICO ELETTRICO (Overload)"
+SUBJECT_OVERLOAD_CLEARED="✅ [%s] Sovraccarico Elettrico Rientrato"
+SUBJECT_TEST="🧪 [TEST] Notifica di Prova: %s"
+
+# Event-specific Notification Bodies
+MSG_BLACKOUT="Attenzione: rilevata interruzione dell'alimentazione elettrica di rete!
+Il dispositivo è passato ad alimentazione a batteria."
+
+MSG_POWER_RESTORED="La tensione di rete è tornata normale. L'UPS è tornato in modalità ONLINE."
+LABEL_OUTAGE_DURATION="Durata black-out: circa %s minuti (%s secondi)"
+
+MSG_BATT_70="Avviso autonomia: la carica della batteria dell'UPS è scesa al 70%%."
+
+MSG_BATT_50="Pre-allarme autonomia: la carica della batteria è al 50%%.
+Se la corrente non torna a breve, prepararsi allo spegnimento dei dispositivi."
+
+MSG_BATT_35="ALLARME CRITICO: la carica della batteria dell'UPS è scesa al 35%%!
+I server e le macchine collegate avvieranno a breve la sequenza di sicurezza."
+
+MSG_FSD="È stato impartito il comando di spegnimento controllato (Forced Shutdown).
+Tutti i computer e server in rete collegati all'UPS si stanno arrestando in sicurezza."
+
+MSG_OVERLOAD="ATTENZIONE: rilevato un sovraccarico elettrico!
+La potenza richiesta dai dispositivi collegati supera la capacità massima supportata.
+
+Azione consigliata:
+Scollegare immediatamente i carichi non essenziali per evitare lo spegnimento termico di protezione!"
+
+MSG_OVERLOAD_CLEARED="Il carico elettrico dell'UPS è tornato a livelli normali di sicurezza."
+
+MSG_TEST="Questa è una email di prova generata per verificare il corretto funzionamento del canale di notifica.
+Se ricevi questa email, il canale di notifica SMTP è configurato e funzionante al 100%!"
+
+# Standard Telemetry Details Block Labels
+LABEL_DETAILS="Dettagli:"
+LABEL_TIMESTAMP="Data e ora"
+LABEL_STATUS="Stato UPS"
+LABEL_BATTERY="Livello batteria"
+LABEL_RUNTIME="Autonomia stimata"
+LABEL_LOAD="Carico attuale"
+LABEL_VOLTAGE="Tensione in ingresso"
+UNIT_MINUTES="minuti"
+UNIT_SECONDS="sec"
+
+# NUT Operational Status Code Translations
+STATUS_OL="OL (On Line - Rete elettrica presente)"
+STATUS_OB="OB (On Battery - A batteria / Black-out in corso)"
+STATUS_CHRG="CHRG (Charging - In ricarica)"
+STATUS_DISCHRG="DISCHRG (Discharging - In scarica)"
+STATUS_LB="LB (Low Battery - Batteria quasi scarica)"
+STATUS_FSD="FSD (Forced ShutDown - Spegnimento forzato)"
+STATUS_OVER="OVER (Overload - Sovraccarico elettrico)"
+STATUS_RB="RB (Replace Battery - Sostituire batteria)"
+STATUS_CAL="CAL (Calibration - Calibrazione in corso)"
+STATUS_OFF="OFF (Offline - Spento)"

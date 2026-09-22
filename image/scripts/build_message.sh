@@ -81,7 +81,13 @@ LOAD="${LOAD:-$(upsc "${UPS_NAME}@localhost" ups.load 2>/dev/null || echo "0")}"
 DURATION_MIN="${DURATION_MIN:-0}"
 DURATION_SEC="${DURATION_SEC:-0}"
 
-# 5. Format and translate NUT status flags
+REALPOWER="${REALPOWER:-$(upsc "${UPS_NAME}@localhost" ups.realpower 2>/dev/null || upsc "${UPS_NAME}@localhost" output.realpower 2>/dev/null || echo "")}"
+NOMINAL_REALPOWER="${NOMINAL_REALPOWER:-$(upsc "${UPS_NAME}@localhost" ups.realpower.nominal 2>/dev/null || upsc "${UPS_NAME}@localhost" output.realpower.nominal 2>/dev/null || echo "${UPS_NOMINAL_WATTS:-}")}"
+
+# 5. Compute real-time output power (Watts) via modular helper script
+POWER_DISPLAY=$("$SCRIPT_DIR/calculate_power.sh" "$RAW_STATUS" "$LOAD" "$REALPOWER" "$NOMINAL_REALPOWER" "${UNIT_WATTS:-W}" "${LABEL_POWER_NOMINAL:-}")
+
+# 6. Format and translate NUT status flags
 format_status() {
     STATUS_STR="$1"
     FORMATTED=""
@@ -112,13 +118,14 @@ STATUS_DESC=$(format_status "$RAW_STATUS")
 
 # 6. Standardized telemetry details block
 build_details() {
-    printf "%s\n- %s: %s\n- %s: %s\n- %s: %s%%\n- %s: %s %s (%s %s)\n- %s: %s%%\n- %s: %s V" \
+    printf "%s\n- %s: %s\n- %s: %s\n- %s: %s%%\n- %s: %s %s (%s %s)\n- %s: %s%%\n- %s: %s\n- %s: %s V" \
         "$LABEL_DETAILS" \
         "$LABEL_TIMESTAMP" "$TIMESTAMP" \
         "$LABEL_STATUS" "$STATUS_DESC" \
         "$LABEL_BATTERY" "$CHARGE" \
         "$LABEL_RUNTIME" "$RUNTIME_MIN" "$UNIT_MINUTES" "$RUNTIME" "$UNIT_SECONDS" \
         "$LABEL_LOAD" "$LOAD" \
+        "$LABEL_POWER" "$POWER_DISPLAY" \
         "$LABEL_VOLTAGE" "$VOLTAGE"
 }
 

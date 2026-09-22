@@ -80,7 +80,8 @@ ups_sharing/
 │   └── scripts/            # Modular Unix notification architecture (container)
 │       ├── ups_notifier.sh # 1. Daemon: upsc polling, state transitions, threshold triggers
 │       ├── build_message.sh# 2. Builder: loads .lang, formats status and telemetry block
-│       └── send_mail.sh    # 3. Delivery: reads from STDIN and sends via msmtp
+│       ├── calculate_power.sh # 3. Telemetry: calculates real-time power (Watts) from metrics
+│       └── send_mail.sh    # 4. Delivery: reads from STDIN and sends via msmtp
 ├── utils/                  # Administrator utility scripts (host)
 │   ├── setup.sh            # Main interactive TUI wizard (arrow-key navigation)
 │   ├── setup/              # Modular setup components
@@ -94,6 +95,37 @@ ups_sharing/
 │   └── test_email.sh       # Instant email notification and telemetry test script
 └── README.md
 ```
+
+---
+
+## 🔌 Supported UPS Hardware & Auto-Identification
+
+The setup wizard (`sudo ./utils/setup.sh`) and container runtime support automatic discovery for any UPS hardware compliant with the standard **USB HID Power Device Class** specification (using NUT's `usbhid-ups` driver).
+
+### Automatically Identified Brands & Models
+
+| Manufacturer | Vendor ID (`vendorid`) | Default Identifier | Supported Product Lines |
+| :--- | :---: | :---: | :--- |
+| **APC (Schneider Electric)** | `051d` | `apc` | Back-UPS (BX, BK, BR, Pro, XS series), Smart-UPS (SMT, SMX, SMC series) |
+| **Eaton** | `0463` | `eaton` | 3S, 5S, 5SC, 5P, 5PX, 9SX, 9PX, Ellipse ECO, Ellipse PRO series |
+| **CyberPower** | `0764` | `cyberpower` | CP, PR, BR, Value, UT, PFC Sinewave, OR, OLS series |
+| **Powercom** | `0d9f` | `ups` | Imperial (IMP), King (KIN), BNT, Raptor (RPT), Spider (SPD) series |
+| **Tripp Lite** | `09ae` | `ups` | SMART, ECO, OMNI, AVR series (USB HID models) |
+| **Riello UPS** | `04b4` / `ffff` | `ups` | iDialog (IDG), Net Dialog (NDG) via USB HID |
+| **Legrand / Keor** | `0463` / generic | `ups` | Keor SP, Keor PDU, Daker DK series |
+| **PowerWalker / BlueWalker** | `06da` / `05b8` | `ups` | VI, VFD, VFI series (USB HID models) |
+| **Generic USB HID UPS** | *Auto-detected* | `ups` | Any UPS identifying as `Uninterruptible Power Supply` on the USB bus |
+
+### How Auto-Identification Works
+
+1. **Hardware Scanning (`utils/setup/hardware.sh`)**:
+   - Queries `lsusb` across all USB buses.
+   - Extracts the exact device vendor ID and manufacturer description.
+   - Intelligently assigns a clean vendor identifier (`apc`, `eaton`, `cyberpower`, `ups`) while allowing custom naming.
+   - Generates the matching `configs/ups.conf` configuration automatically.
+2. **Dynamic Runtime Telemetry (`build_message.sh` & `ups_notifier.sh`)**:
+   - Discovers device metadata (`ups.mfr`, `ups.model`) directly from NUT descriptors.
+   - Automatically determines active real-time power (Watts) using hardware readings (`ups.realpower`) or calculates it dynamically from the manufacturer's rated nominal capacity (`ups.realpower.nominal`) and load percentage (`ups.load`), with zero hardcoded values.
 
 ---
 
@@ -178,7 +210,7 @@ To safely shut down other machines (Proxmox nodes, TrueNAS systems, Home Assista
    POWERDOWNFLAG /etc/killpower
    ```
    > **Parameters**:
-   > - `<ups_name>`: UPS identifier configured in `configs/.env` (`UPS_NAME`) and `configs/ups.conf` (e.g. `apc950`).
+   > - `<ups_name>`: UPS identifier configured in `configs/.env` (`UPS_NAME`) and `configs/ups.conf` (e.g. `apc` or `ups`).
    > - `<API_USER>`: Client username configured in `configs/.env` (`API_USER`, default `upsmon`).
    > - `<API_PASSWORD>`: Client password stored in `configs/secrets/nut_password.txt`.
    > *(Connections automatically use TLS to encrypt passwords and shutdown signals).*

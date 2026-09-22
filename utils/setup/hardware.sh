@@ -23,7 +23,7 @@ detect_ups_hardware() {
 
         # Intelligently assign identifier name based on detected vendor
         case "$detected_usb" in
-            *APC*|*American\ Power\ Conversion*) UPS_NAME="apc950" ;;
+            *APC*|*American\ Power\ Conversion*) UPS_NAME="apc" ;;
             *Eaton*)                             UPS_NAME="eaton" ;;
             *CyberPower*)                        UPS_NAME="cyberpower" ;;
             *)                                   UPS_NAME="ups" ;;

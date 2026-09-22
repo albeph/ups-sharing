@@ -12,6 +12,7 @@ NOTIFICATION_EMAIL="${1:-${NOTIFICATION_EMAIL:-}}"
 UPS_NAME="${2:-${UPS_NAME:-}}"
 ALERT_LANG="${ALERT_LANG:-en}"
 UPS_FRIENDLY_NAME="${UPS_FRIENDLY_NAME:-}"
+UPS_NOMINAL_WATTS="${UPS_NOMINAL_WATTS:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -47,7 +48,7 @@ BLACKOUT_START=0
 # Trigger the modular Unix pipeline: build_message.sh -> send_mail.sh
 trigger_event() {
     EVENT_NAME="$1"
-    export TIMESTAMP RAW_STATUS CHARGE RUNTIME RUNTIME_MIN VOLTAGE LOAD DURATION_MIN DURATION_SEC UPS_NAME UPS_FRIENDLY_NAME ALERT_LANG
+    export TIMESTAMP RAW_STATUS CHARGE RUNTIME RUNTIME_MIN VOLTAGE LOAD REALPOWER NOMINAL_REALPOWER DURATION_MIN DURATION_SEC UPS_NAME UPS_FRIENDLY_NAME ALERT_LANG UPS_NOMINAL_WATTS
     "$SCRIPT_DIR/build_message.sh" "$EVENT_NAME" | "$SCRIPT_DIR/send_mail.sh" "$NOTIFICATION_EMAIL" || {
         echo "[NOTIFIER] ⚠️ Error executing notification pipeline for event '$EVENT_NAME'" >&2
     }
@@ -62,11 +63,15 @@ while true; do
         RUNTIME=$(echo "$VARS" | awk -F': ' '$1=="battery.runtime"{print $2}')
         VOLTAGE=$(echo "$VARS" | awk -F': ' '$1=="input.voltage"{print $2}')
         LOAD=$(echo "$VARS" | awk -F': ' '$1=="ups.load"{print $2}')
+        REALPOWER=$(echo "$VARS" | awk -F': ' '$1=="ups.realpower" || $1=="output.realpower"{print $2; exit}')
+        NOMINAL_REALPOWER=$(echo "$VARS" | awk -F': ' '$1=="ups.realpower.nominal" || $1=="output.realpower.nominal"{print $2; exit}')
 
         CHARGE="${CHARGE:-100}"
         RUNTIME="${RUNTIME:-0}"
         VOLTAGE="${VOLTAGE:-0}"
         LOAD="${LOAD:-0}"
+        REALPOWER="${REALPOWER:-}"
+        NOMINAL_REALPOWER="${NOMINAL_REALPOWER:-${UPS_NOMINAL_WATTS:-}}"
 
         TIMESTAMP=$(date '+%d/%m/%Y %H:%M:%S')
         RUNTIME_MIN=$((RUNTIME / 60))

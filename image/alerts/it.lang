@@ -51,9 +51,12 @@ LABEL_STATUS="Stato UPS"
 LABEL_BATTERY="Livello batteria"
 LABEL_RUNTIME="Autonomia stimata"
 LABEL_LOAD="Carico attuale"
+LABEL_POWER="Potenza erogata"
+LABEL_POWER_NOMINAL="(su %s %s nominali)"
 LABEL_VOLTAGE="Tensione in ingresso"
 UNIT_MINUTES="minuti"
 UNIT_SECONDS="sec"
+UNIT_WATTS="W"
 
 # NUT Operational Status Code Translations
 STATUS_OL="OL (On Line - Rete elettrica presente)"

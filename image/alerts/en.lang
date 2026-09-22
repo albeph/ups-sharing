@@ -51,9 +51,12 @@ LABEL_STATUS="UPS Status"
 LABEL_BATTERY="Battery Level"
 LABEL_RUNTIME="Estimated Runtime"
 LABEL_LOAD="Current Load"
+LABEL_POWER="Output Power"
+LABEL_POWER_NOMINAL="(out of %s %s nominal)"
 LABEL_VOLTAGE="Input Voltage"
 UNIT_MINUTES="minutes"
 UNIT_SECONDS="sec"
+UNIT_WATTS="W"
 
 # NUT Operational Status Code Translations
 STATUS_OL="OL (On Line - Mains power present)"

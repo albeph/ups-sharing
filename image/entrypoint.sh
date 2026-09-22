@@ -53,7 +53,7 @@ done
 
 # Check if ups.conf contains at least one active UPS definition section [ups_name]
 if ! grep -qE '^\[[a-zA-Z0-9_-]+\]' /etc/nut/ups.conf; then
-    echo "❌ FATAL ERROR: No UPS definition section (e.g. [apc950]) found in configs/ups.conf!"
+    echo "❌ FATAL ERROR: No UPS definition section (e.g. [ups] or [apc]) found in configs/ups.conf!"
     echo "   Check configs/ups.conf or run: sudo ./utils/setup.sh"
     exit 1
 fi
@@ -68,7 +68,8 @@ API_USER="${API_USER:-upsmon}"
 NOTIFICATION_EMAIL="${NOTIFICATION_EMAIL:-}"
 ALERT_LANG="${ALERT_LANG:-en}"
 UPS_FRIENDLY_NAME="${UPS_FRIENDLY_NAME:-}"
-export ALERT_LANG UPS_FRIENDLY_NAME
+UPS_NOMINAL_WATTS="${UPS_NOMINAL_WATTS:-}"
+export ALERT_LANG UPS_FRIENDLY_NAME UPS_NOMINAL_WATTS
 
 # Load NUT password from Docker Secrets (RAM-backed /run/secrets)
 if [ -f "/run/secrets/nut_password" ] && [ -s "/run/secrets/nut_password" ]; then
@@ -94,7 +95,7 @@ if [ ! -f "/alerts/${ALERT_LANG}.lang" ]; then
 fi
 
 # Validate essential internal scripts
-for s in "/scripts/ups_notifier.sh" "/scripts/build_message.sh" "/scripts/send_mail.sh"; do
+for s in "/scripts/ups_notifier.sh" "/scripts/build_message.sh" "/scripts/send_mail.sh" "/scripts/calculate_power.sh"; do
     if [ ! -x "$s" ]; then
         echo "❌ FATAL ERROR: Essential script '$s' is missing or not executable!"
         exit 1

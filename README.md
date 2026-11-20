@@ -1,4 +1,4 @@
-# ups_sharing — Docker NUT Server with TLS & SMTP Alerts
+# ups-sharing — Docker NUT Server with TLS & SMTP Alerts
 
 A lightweight (~25 MB disk, ~7 MB RAM), unprivileged **Alpine Linux** Docker stack for sharing any **USB HID Uninterruptible Power Supply (UPS)** over a local network using **Network UPS Tools (NUT)**, complete with TLS encryption, role-based access control, localized email notifications, and persistent post-shutdown recovery alerts.
 

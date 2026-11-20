@@ -18,10 +18,10 @@ RUN apk add --no-cache \
     ca-certificates
 
 # Create runtime directories with appropriate permissions and clean default package templates
-RUN mkdir -p /var/run/nut /etc/nut /etc/nut-config /etc/nut/certs /scripts /alerts /smtp_configs && \
+RUN mkdir -p /var/run/nut /var/lib/nut-state /etc/nut /etc/nut-config /etc/nut/certs /scripts /alerts /smtp_configs && \
     rm -rf /etc/nut/* && \
     chown -R nut:nut /var/run/nut /etc/nut && \
-    chmod 750 /var/run/nut
+    chmod 750 /var/run/nut /var/lib/nut-state
 
 # Copy application scripts, alert templates, SMTP configurations, VERSION, and entrypoint
 COPY VERSION /VERSION
@@ -29,7 +29,7 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY scripts /scripts
 COPY alerts /alerts
 COPY smtp_configs /smtp_configs
-RUN chmod +x /usr/local/bin/entrypoint.sh /scripts/*.sh && \
+RUN chmod +x /usr/local/bin/entrypoint.sh /scripts/*.sh /scripts/lib/*.sh && \
     chmod 644 /alerts/* /smtp_configs/* /VERSION
 
 EXPOSE 3493

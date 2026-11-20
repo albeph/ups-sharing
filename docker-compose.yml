@@ -22,16 +22,25 @@ services:
       - ./configs/.env
     secrets:
       - nut_password
+      - nut_secondary_password
       - smtp_password
     volumes:
       # Dynamic USB bus pass-through
       - /dev/bus/usb:/dev/bus/usb
       # NUT configuration folder mount
       - ./configs:/etc/nut-config:ro
+      # Persistent runtime state (tracks post-FSD recovery across host reboots)
+      - nut_state:/var/lib/nut-state
+
+
+volumes:
+  nut_state:
 
 
 secrets:
   nut_password:
     file: ./configs/secrets/nut_password.txt
+  nut_secondary_password:
+    file: ./configs/secrets/nut_secondary_password.txt
   smtp_password:
     file: ./configs/secrets/smtp_password.txt

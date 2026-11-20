@@ -87,7 +87,7 @@ menu_select() {
             echo "    $((i+1))) ${options[i]}"
         done
         echo -e "\n  ${GREEN}✔ Selected: ${options[0]}${RESET}\n"
-        eval "$out_var=0"
+        printf -v "$out_var" '%s' "0"
         return 0
     fi
 
@@ -150,7 +150,7 @@ menu_select() {
     printf "\033[2K\r  ${GREEN}${BOLD}✔ Selected: %s${RESET}\n\n" "${options[selected]}"
 
     cursor_show
-    eval "$out_var=$selected"
+    printf -v "$out_var" '%s' "$selected"
 }
 
 # ---------------------------------------------------------------------
@@ -167,10 +167,10 @@ prompt_text() {
     else
         printf "  %b%s%b: " "${BOLD}" "$label" "${RESET}"
     fi
-    read -r input
+    read -r input || true
     input="${input:-$default_val}"
     echo ""
-    eval "$out_var=\"\$input\""
+    printf -v "$out_var" '%s' "$input"
 }
 
 # ---------------------------------------------------------------------
@@ -183,7 +183,7 @@ prompt_secret() {
     local input=""
 
     printf "  %b%s%b: " "${BOLD}" "$label" "${RESET}"
-    read -rs input
+    read -rs input || true
     echo ""
 
     if [ -z "$input" ] && [ -n "$default_val" ]; then
@@ -192,7 +192,7 @@ prompt_secret() {
     else
         echo ""
     fi
-    eval "$out_var=\"\$input\""
+    printf -v "$out_var" '%s' "$input"
 }
 
 # ---------------------------------------------------------------------
@@ -205,12 +205,12 @@ prompt_confirm() {
     local input=""
 
     printf "  %b%s%b (Y/n) [%b%s%b]: " "${BOLD}" "$label" "${RESET}" "${CYAN}" "$default_yn" "${RESET}"
-    read -r input
+    read -r input || true
     echo ""
     input="${input:-$default_yn}"
 
     case "$input" in
-        [yY]*) eval "$out_var=true" ;;
-        *) eval "$out_var=false" ;;
+        [yY]*) printf -v "$out_var" '%s' "true" ;;
+        *) printf -v "$out_var" '%s' "false" ;;
     esac
 }

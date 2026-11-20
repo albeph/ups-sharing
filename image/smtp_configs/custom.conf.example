@@ -1,11 +1,12 @@
 # =====================================================================
 # SMTP PROVIDER: CUSTOM CONFIGURATION TEMPLATE (custom.conf.example)
 # =====================================================================
-# Copy this file to custom.conf to define any custom mail provider, also local one! :
+# Copy this file to custom.conf to define any custom or local LAN SMTP
+# relay provider:
 #   cp image/smtp_configs/custom.conf.example image/smtp_configs/custom.conf
 
 PROVIDER_NAME="Custom SMTP Provider"
-SMTP_HOST="mail.yourdomain.com"
+SMTP_HOST="mail.example.com"
 SMTP_PORT="587"
 SMTP_TLS="on"
 SMTP_STARTTLS="on"

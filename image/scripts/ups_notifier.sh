@@ -2,41 +2,33 @@
 set -u
 
 # =====================================================================
-# UPS STATUS MONITOR DAEMON (ups_notifier.sh)
-# Responsibilities: Communicate with NUT (upsc), maintain state machine,
-# detect threshold transitions, and trigger the Unix alert pipeline:
-#   build_message.sh <event> | send_mail.sh <recipient>
+# UPS STATUS MONITOR DAEMON (image/scripts/ups_notifier.sh)
+# =====================================================================
+# Responsibility:
+#   Poll live UPS telemetry from NUT (upsc), execute the event state
+#   machine (blackout, power restoration, battery thresholds, Forced
+#   Shutdown, electrical overload), refresh stale input.voltage readings
+#   on power flips, coordinate with fsd_recovery.sh to avoid duplicates,
+#   and dispatch alerts through the modular Unix pipeline:
+#     build_message.sh <event> | send_mail.sh <recipient>
+#
+# Sourcing mode (for unit testing):
+#   Set UPS_NOTIFIER_LIB_ONLY=1 before sourcing to load the state
+#   machine methods without entering the polling loop.
 # =====================================================================
 
-NOTIFICATION_EMAIL="${1:-${NOTIFICATION_EMAIL:-}}"
+SCRIPT_DIR="${UPS_SCRIPTS_DIR:-$(cd "$(dirname "$0")" && pwd)}"
+. "$SCRIPT_DIR/ups_telemetry.sh"
+
+NOTIFICATION_EMAIL=$(resolve_recipient "${1:-${NOTIFICATION_EMAIL:-}}")
 UPS_NAME="${2:-${UPS_NAME:-}}"
 ALERT_LANG="${ALERT_LANG:-en}"
 UPS_FRIENDLY_NAME="${UPS_FRIENDLY_NAME:-}"
 UPS_NOMINAL_WATTS="${UPS_NOMINAL_WATTS:-}"
+FSD_RECOVERY_BIN="${FSD_RECOVERY_BIN:-$SCRIPT_DIR/fsd_recovery.sh}"
+NOTIFIER_POLL_INTERVAL="${NOTIFIER_POLL_INTERVAL:-3}"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# If recipient email is not provided via argument or variable, read from file
-if [ -z "$NOTIFICATION_EMAIL" ] && [ -f "/etc/notification_email" ]; then
-    NOTIFICATION_EMAIL=$(cat /etc/notification_email | tr -d ' \r\n')
-fi
-
-# 1. Wait until NUT server is ready and responding
-echo "[NOTIFIER] Waiting for NUT server to become ready..."
-RETRY=0
-while [ -z "$UPS_NAME" ] || ! upsc "${UPS_NAME}@localhost" ups.status >/dev/null 2>&1; do
-    if [ -z "$UPS_NAME" ]; then
-        UPS_NAME=$(upsc -l localhost 2>/dev/null | head -n1 || true)
-    fi
-    sleep 2
-    RETRY=$((RETRY + 1))
-    if [ "$RETRY" -ge 30 ] && [ -z "$UPS_NAME" ]; then
-        UPS_NAME="ups"
-    fi
-done
-
-echo "[NOTIFIER] NUT server reachable. Monitoring started (UPS: $UPS_NAME, Friendly: ${UPS_FRIENDLY_NAME:-N/A}, Language: $ALERT_LANG)"
-
+# State machine fields
 PREV_STATUS="OL"
 SENT_70=0
 SENT_50=0
@@ -45,122 +37,195 @@ SENT_FSD=0
 SENT_OVER=0
 BLACKOUT_START=0
 
-# Trigger the modular Unix pipeline: build_message.sh -> send_mail.sh
+# ---------------------------------------------------------------------
+# trigger_event: Export snapshot context and execute the notification
+# pipeline (build_message.sh -> send_mail.sh).
+# Arguments:
+#   $1 - Event identifier (e.g. "blackout", "power_restored", "fsd")
+# ---------------------------------------------------------------------
 trigger_event() {
     EVENT_NAME="$1"
-    export TIMESTAMP RAW_STATUS CHARGE RUNTIME RUNTIME_MIN VOLTAGE LOAD REALPOWER NOMINAL_REALPOWER DURATION_MIN DURATION_SEC UPS_NAME UPS_FRIENDLY_NAME ALERT_LANG UPS_NOMINAL_WATTS
+    export TIMESTAMP RAW_STATUS CHARGE RUNTIME RUNTIME_MIN VOLTAGE LOAD \
+           REALPOWER NOMINAL_REALPOWER DURATION_MIN DURATION_SEC \
+           UPS_NAME UPS_FRIENDLY_NAME ALERT_LANG UPS_NOMINAL_WATTS
+
     "$SCRIPT_DIR/build_message.sh" "$EVENT_NAME" | "$SCRIPT_DIR/send_mail.sh" "$NOTIFICATION_EMAIL" || {
-        echo "[NOTIFIER] ⚠️ Error executing notification pipeline for event '$EVENT_NAME'" >&2
+        echo "[NOTIFIER] ⚠️ Error executing notification pipeline for event '${EVENT_NAME}'" >&2
     }
 }
 
-while true; do
-    VARS=$(upsc "${UPS_NAME}@localhost" 2>/dev/null || true)
-    RAW_STATUS=$(echo "$VARS" | awk -F': ' '$1=="ups.status"{print $2}')
+# ---------------------------------------------------------------------
+# notifier_reset_outage_flags: Clear per-outage alert tracking flags.
+# ---------------------------------------------------------------------
+notifier_reset_outage_flags() {
+    SENT_70=0
+    SENT_50=0
+    SENT_35=0
+    SENT_FSD=0
+}
 
-    if [ -n "$RAW_STATUS" ]; then
-        CHARGE=$(echo "$VARS" | awk -F': ' '$1=="battery.charge"{print $2}')
-        RUNTIME=$(echo "$VARS" | awk -F': ' '$1=="battery.runtime"{print $2}')
-        VOLTAGE=$(echo "$VARS" | awk -F': ' '$1=="input.voltage"{print $2}')
-        LOAD=$(echo "$VARS" | awk -F': ' '$1=="ups.load"{print $2}')
-        REALPOWER=$(echo "$VARS" | awk -F': ' '$1=="ups.realpower" || $1=="output.realpower"{print $2; exit}')
-        NOMINAL_REALPOWER=$(echo "$VARS" | awk -F': ' '$1=="ups.realpower.nominal" || $1=="output.realpower.nominal"{print $2; exit}')
+# ---------------------------------------------------------------------
+# notifier_handle_blackout: Process OL -> OB transition (power outage).
+# Refreshes potentially stale input.voltage and applies charging-deficit
+# protection so already-crossed thresholds do not cause alert storms.
+# ---------------------------------------------------------------------
+notifier_handle_blackout() {
+    case "$RAW_STATUS" in
+        *OB*)
+            case "$PREV_STATUS" in
+                *OL*)
+                    BLACKOUT_START=$(date +%s)
+                    notifier_reset_outage_flags
+                    # Force on-demand HID refresh for accurate input.voltage
+                    refresh_telemetry_on_transition "$UPS_NAME"
+                    # Charging-deficit protection: suppress thresholds already crossed at blackout start
+                    if [ "$CHARGE_INT" -le 70 ]; then SENT_70=1; fi
+                    if [ "$CHARGE_INT" -le 50 ]; then SENT_50=1; fi
+                    if [ "$CHARGE_INT" -le 35 ]; then SENT_35=1; fi
+                    trigger_event "blackout"
+                    ;;
+            esac
+            ;;
+    esac
+}
 
-        CHARGE="${CHARGE:-100}"
-        RUNTIME="${RUNTIME:-0}"
-        VOLTAGE="${VOLTAGE:-0}"
-        LOAD="${LOAD:-0}"
-        REALPOWER="${REALPOWER:-}"
-        NOMINAL_REALPOWER="${NOMINAL_REALPOWER:-${UPS_NOMINAL_WATTS:-}}"
-
-        TIMESTAMP=$(date '+%d/%m/%Y %H:%M:%S')
-        RUNTIME_MIN=$((RUNTIME / 60))
-        DURATION_MIN=0
-        DURATION_SEC=0
-
-        # 1. EVENT: POWER OUTAGE (Blackout - transitioned from mains OL to battery OB)
-        case "$RAW_STATUS" in
-            *OB*)
-                case "$PREV_STATUS" in
-                    *OL*)
-                        BLACKOUT_START=$(date +%s)
-                        SENT_70=0
-                        SENT_50=0
-                        SENT_35=0
-                        SENT_FSD=0
-                        trigger_event "blackout"
-                        ;;
-                esac
-                ;;
-        esac
-
-        # 2. EVENT: POWER RESTORED (Transitioned back from battery OB to mains OL)
-        case "$RAW_STATUS" in
-            *OL*)
-                case "$PREV_STATUS" in
-                    *OB*)
-                        BLACKOUT_END=$(date +%s)
-                        if [ "$BLACKOUT_START" -gt 0 ]; then
-                            DURATION_SEC=$((BLACKOUT_END - BLACKOUT_START))
+# ---------------------------------------------------------------------
+# notifier_handle_power_restored: Process OB -> OL transition (mains
+# returned). Delegates to fsd_recovery.sh if a post-FSD reboot recovery
+# notification is currently active to guarantee zero duplicate emails.
+# ---------------------------------------------------------------------
+notifier_handle_power_restored() {
+    case "$RAW_STATUS" in
+        *OL*)
+            case "$PREV_STATUS" in
+                *OB*)
+                    if [ -x "$FSD_RECOVERY_BIN" ] && "$FSD_RECOVERY_BIN" is-recovery-active; then
+                        echo "[NOTIFIER] Post-FSD recovery manager is active; delegating power_restored notification to avoid duplicates."
+                    else
+                        _blackout_end=$(date +%s)
+                        if [ "$BLACKOUT_START" -gt 0 ] && [ "$_blackout_end" -gt "$BLACKOUT_START" ]; then
+                            DURATION_SEC=$((_blackout_end - BLACKOUT_START))
                         fi
                         DURATION_MIN=$((DURATION_SEC / 60))
+                        refresh_telemetry_on_transition "$UPS_NAME"
                         trigger_event "power_restored"
-                        BLACKOUT_START=0
-                        SENT_70=0
-                        SENT_50=0
-                        SENT_35=0
-                        SENT_FSD=0
-                        ;;
-                esac
-                ;;
-        esac
 
-        # 3. BATTERY LEVEL THRESHOLDS (While discharging on battery OB)
-        case "$RAW_STATUS" in
-            *OB*)
-                if [ "$CHARGE" -le 70 ] && [ "$SENT_70" -eq 0 ]; then
-                    SENT_70=1
-                    trigger_event "batt_70"
-                fi
+                        # Clear any FSD marker recorded during this runtime if mains returned before halt
+                        if [ -x "$FSD_RECOVERY_BIN" ]; then
+                            case "$RAW_STATUS" in
+                                *FSD*|*SHUTDOWN*) ;;
+                                *) "$FSD_RECOVERY_BIN" clear >/dev/null 2>&1 || true ;;
+                            esac
+                        fi
+                    fi
 
-                if [ "$CHARGE" -le 50 ] && [ "$SENT_50" -eq 0 ]; then
-                    SENT_50=1
-                    trigger_event "batt_50"
-                fi
+                    BLACKOUT_START=0
+                    notifier_reset_outage_flags
+                    ;;
+            esac
+            ;;
+    esac
+}
 
-                if [ "$CHARGE" -le 35 ] && [ "$SENT_35" -eq 0 ]; then
-                    SENT_35=1
-                    trigger_event "batt_35"
-                fi
-                ;;
-        esac
-
-        # 4. EVENT: FORCED SHUTDOWN COMMAND (FSD / Shutdown)
-        case "$RAW_STATUS" in
-            *FSD*|*SHUTDOWN*)
-                if [ "$SENT_FSD" -eq 0 ]; then
-                    SENT_FSD=1
-                    trigger_event "fsd"
-                fi
-                ;;
-        esac
-
-        # 5. EVENT: OVERLOAD
-        LOAD_INT="${LOAD%%.*}"
-        if case "$RAW_STATUS" in *OVER*) true;; *) false;; esac || [ "${LOAD_INT:-0}" -ge 100 ]; then
-            if [ "$SENT_OVER" -eq 0 ]; then
-                SENT_OVER=1
-                trigger_event "overload"
+# ---------------------------------------------------------------------
+# notifier_handle_battery_thresholds: Evaluate battery charge thresholds
+# (35% -> 50% -> 70%) while running on battery, using cascade marking
+# from most critical upward to prevent multi-email bursts.
+# ---------------------------------------------------------------------
+notifier_handle_battery_thresholds() {
+    case "$RAW_STATUS" in
+        *OB*)
+            if [ "$CHARGE_INT" -le 35 ] && [ "$SENT_35" -eq 0 ]; then
+                SENT_70=1
+                SENT_50=1
+                SENT_35=1
+                trigger_event "batt_35"
+            elif [ "$CHARGE_INT" -le 50 ] && [ "$SENT_50" -eq 0 ]; then
+                SENT_70=1
+                SENT_50=1
+                trigger_event "batt_50"
+            elif [ "$CHARGE_INT" -le 70 ] && [ "$SENT_70" -eq 0 ]; then
+                SENT_70=1
+                trigger_event "batt_70"
             fi
-        else
-            if [ "$SENT_OVER" -eq 1 ]; then
-                SENT_OVER=0
-                trigger_event "overload_cleared"
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------
+# notifier_handle_fsd: Persist post-FSD recovery marker on disk before
+# dispatching the Forced Shutdown notification email.
+# ---------------------------------------------------------------------
+notifier_handle_fsd() {
+    case "$RAW_STATUS" in
+        *FSD*|*SHUTDOWN*)
+            if [ "$SENT_FSD" -eq 0 ]; then
+                SENT_FSD=1
+                # Persist FSD marker BEFORE SMTP so it survives immediate power-off
+                if [ -x "$FSD_RECOVERY_BIN" ]; then
+                    "$FSD_RECOVERY_BIN" mark-fsd "$CHARGE" "$BLACKOUT_START" || true
+                fi
+                trigger_event "fsd"
             fi
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------
+# notifier_handle_overload: Track electrical overload entry and recovery.
+# ---------------------------------------------------------------------
+notifier_handle_overload() {
+    if case "$RAW_STATUS" in *OVER*) true;; *) false;; esac || [ "$LOAD_INT" -ge 100 ]; then
+        if [ "$SENT_OVER" -eq 0 ]; then
+            SENT_OVER=1
+            trigger_event "overload"
         fi
-
-        PREV_STATUS="$RAW_STATUS"
+    else
+        if [ "$SENT_OVER" -eq 1 ]; then
+            SENT_OVER=0
+            trigger_event "overload_cleared"
+        fi
     fi
+}
 
-    sleep 3
-done
+# ---------------------------------------------------------------------
+# process_ups_snapshot: Advance the UPS event state machine by one
+# telemetry snapshot.
+# ---------------------------------------------------------------------
+process_ups_snapshot() {
+    [ -n "${RAW_STATUS:-}" ] || return 0
+
+    TIMESTAMP=$(date '+%d/%m/%Y %H:%M:%S')
+    DURATION_MIN=0
+    DURATION_SEC=0
+
+    notifier_handle_blackout
+    notifier_handle_power_restored
+    notifier_handle_battery_thresholds
+    notifier_handle_fsd
+    notifier_handle_overload
+
+    PREV_STATUS="$RAW_STATUS"
+}
+
+# ---------------------------------------------------------------------
+# notifier_main: Wait for NUT server readiness and run polling loop.
+# ---------------------------------------------------------------------
+notifier_main() {
+    echo "[NOTIFIER] Waiting for NUT server to become ready..."
+    wait_for_nut_server "$UPS_NAME" 2
+    echo "[NOTIFIER] NUT server reachable. Monitoring started (UPS: ${UPS_NAME}, Friendly: ${UPS_FRIENDLY_NAME:-N/A}, Language: ${ALERT_LANG})"
+
+    while true; do
+        fetch_ups_telemetry "$UPS_NAME"
+        process_ups_snapshot
+        sleep "$NOTIFIER_POLL_INTERVAL"
+    done
+}
+
+# Allow sourcing this file as a library for deterministic unit testing
+if [ "${UPS_NOTIFIER_LIB_ONLY:-0}" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
+notifier_main

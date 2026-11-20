@@ -11,6 +11,7 @@ SUBJECT_BATT_70="📉 [%s] Battery Dropped to 70%%"
 SUBJECT_BATT_50="⚠️ [%s] PRE-ALARM: Battery at 50%%"
 SUBJECT_BATT_35="🚨 [%s] CRITICAL ALARM: Battery at 35%%"
 SUBJECT_FSD="🛑 [%s] SHUTDOWN COMMAND INITIATED (FSD)"
+SUBJECT_FSD_POWER_RESTORED="✅ [%s] POWER RESTORED AFTER SHUTDOWN (System Online)"
 SUBJECT_OVERLOAD="⚠️ [%s] ALARM: ELECTRICAL OVERLOAD"
 SUBJECT_OVERLOAD_CLEARED="✅ [%s] Electrical Overload Cleared"
 SUBJECT_TEST="🧪 [TEST] Test Notification: %s"
@@ -32,6 +33,13 @@ Connected servers and clients will initiate safe shutdown sequences shortly."
 
 MSG_FSD="A Forced Shutdown (FSD) command has been issued.
 All network clients and systems connected to this UPS are shutting down safely."
+
+MSG_FSD_POWER_RESTORED="Mains utility power has been restored and the system has booted back online after a Forced Shutdown (FSD).
+The UPS has resumed ONLINE mode and monitoring is active again."
+LABEL_FSD_TIME="Previous shutdown command (FSD): %s"
+LABEL_OUTAGE_DURATION_UNKNOWN="Outage duration: unavailable (system clock syncing after reboot)"
+LABEL_FSD_CYCLES="Note: %s consecutive shutdown cycles occurred before power stabilized."
+MSG_RECHARGE_DEFICIT_WARN="⚠️ Warning: UPS battery is still recharging (%s%%). Autonomy is temporarily reduced in case of another outage."
 
 MSG_OVERLOAD="WARNING: Electrical overload detected!
 Power draw from connected devices exceeds maximum rated capacity.

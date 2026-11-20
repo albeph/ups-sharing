@@ -1,244 +1,224 @@
-# Network UPS Tools (NUT) Server - with TLS & Universal SMTP Alerts
+# ups_sharing — Docker NUT Server with TLS & SMTP Alerts
 
-A universal, secure, and minimal (~25 MB disk footprint, ~7 MB RAM usage) solution based on **Alpine Linux** to share any USB-connected Uninterruptible Power Supply (UPS) (APC, Eaton, CyberPower, etc.) over the local network using **Network UPS Tools (NUT)**.
-
----
-
-## 🛡️ Key Features
-
-- **Dynamic USB Discovery & Native Linux Kernel Protection**: No `privileged: true` container mode required. Utilizes Linux cgroup rules (`device_cgroup_rules: - 'c 189:* rmw'`) and `/dev/bus/usb` volume pass-through. Automatically handles dynamic USB re-enumeration (reboots, replug events, incrementing device IDs) without host udev scripts or container restarts, while guaranteeing hardware-level security.
-- **Universal Auto-Discovery**: Dynamically detects any configured UPS brand or model (`upsc -l`), automatically tailoring texts, alerts, and telemetry without hardcoded names.
-- **Clean Standard Security**:
-  - Zero credentials committed to Git (`configs/.env` protected in `.gitignore`, provided template `configs/.env.example`).
-  - Sensitive passwords managed via **Docker Secrets** mounted into RAM.
-  - Encrypted **TLS / SSL** communication between NUT server and network clients (port 3493) using an auto-generated NSS certificate database.
-- **Universal SMTP Provider Support & Templates**:
-  - Multi-provider mail delivery: Google Gmail, Microsoft Outlook / Office 365, Local LAN SMTP relays (e.g. Synology, Postfix, Proxmox port 25 without auth), and custom SMTP servers.
-  - Ready-to-use template files in `image/smtp_configs/`.
-- **Interactive TUI Setup Wizard (`sudo ./utils/setup.sh`)**:
-  - Interactive terminal UI with arrow-key navigation (`↑`/`↓` and `Enter`) for selecting alert language and SMTP provider.
-  - Modular decomposition in `utils/setup/` (`ui.sh`, `hardware.sh`, `localization.sh`, `nut_client.sh`, `smtp.sh`, `secrets.sh`, `env_generator.sh`).
-- **Modular Unix Alert Pipeline**:
-  - 🔌 **Power Outage (Blackout)**: Instant alert on switch to battery power with current load and runtime.
-  - 💡 **Power Restored**: Mains power restored with automatic calculation of blackout duration.
-  - 📉 **70% Threshold**: Autonomy advisory.
-  - ⚠️ **50% Threshold**: Pre-alarm warning.
-  - 🚨 **35% Threshold**: Critical alert (imminent system shutdown).
-  - 🛑 **FSD (Forced Shutdown)**: Clean network-wide client shutdown event.
-  - ⚠️ **Electrical Overload**: Alert and clearance tracking.
+A lightweight (~25 MB disk, ~7 MB RAM), unprivileged **Alpine Linux** Docker stack for sharing any **USB HID Uninterruptible Power Supply (UPS)** over a local network using **Network UPS Tools (NUT)**, complete with TLS encryption, role-based access control, localized email notifications, and persistent post-shutdown recovery alerts.
 
 ---
 
-## 🔐 Security Model & Privilege Separation
+## Key Features
 
-The project follows the **Principle of Least Privilege (PoLP)** and rigorous privilege separation:
-
-### 1. Protection of Secrets at Rest (Docker Secrets)
-- **Secrets isolation**: Sensitive credentials (NUT client password and SMTP password) reside in `configs/secrets/` with strict permissions (`chmod 400 root:root`).
-- **No environment variable exposure**: Passwords are **never stored in `configs/.env`** and do not pass through Docker environment variables. Inspecting the container (`docker inspect`) reveals no credentials in container metadata.
-- **Secure RAM injection**: Docker mounts secrets directly into volatile memory (`/run/secrets/`). The folder structure is tracked via `configs/secrets/.gitkeep` while secret files are excluded by `.gitignore`.
-
-### 2. Native Linux Kernel Protection & Single-Bus Isolation
-- **Unprivileged Container**: The container is strictly unprivileged (`privileged: false`). Docker strips dangerous Linux capabilities, specifically `CAP_SYS_RAWIO`, `CAP_NET_ADMIN`, and `CAP_NET_RAW`.
-- **Shared Bus Protection (Raspberry Pi Zero 2W)**: On SBCs where a USB hub connects both the UPS and a USB-Ethernet adapter to a single USB bus controller, the Linux kernel natively enforces that userspace cannot detach kernel drivers (e.g. `usbnet`, `cdc_ether`, `ax88179`):
-  > The kernel's `USBDEVFS_DISCONNECT` ioctl explicitly requires `CAP_SYS_RAWIO`. Because the container lacks this capability, any attempt to unbind or tamper with the host network adapter returns `-EPERM` (Operation not permitted) directly from the kernel.
-- **Dynamic Re-enumeration**: Using `device_cgroup_rules: - 'c 189:* rmw'`, the container can access newly created USB device nodes (major 189) on the fly when the UPS is replugged or after a host reboot, while NUT's `libusb` walks the bus (`port = auto`) to claim the UPS without manual configuration.
-
-### 3. Privilege Drop in Container Runtime
-- **Startup phase (2 seconds)**: The entrypoint launches as root solely to load mounted secrets, generate TLS certificates, and initialize the USB device node permissions.
-- **Steady-state daemon (Protected Network)**: The network daemon **`upsd`** (the only process listening on TCP port `3493`) immediately performs a **privilege drop**, transferring execution to the unprivileged system user **`nut`** (`UID=100`, `GID=101`).
-  > In the event of an attempted network exploit against port 3493, an attacker remains confined to the unprivileged `nut` user without host or root escalation capabilities.
-
----
-
-## 📁 Repository Structure
-
-```text
-ups_sharing/
-├── docker-compose.yml      # Service orchestration, dynamic USB cgroup rules, secret mounts
-├── .gitignore              # Secure ignore rules (configs/.env, configs/secrets/*)
-├── configs/                # Configuration folder (mounted into container / runtime parameters)
-│   ├── .env                # Active non-sensitive environment configuration (gitignored)
-│   ├── .env.example        # Environment template for repository cloning
-│   ├── nut.conf            # Operational mode (netserver)
-│   ├── ups.conf            # Active UPS driver and communication configuration
-│   ├── upsd.conf           # Network listening rules, access limits, and TLS paths
-│   └── secrets/            # Docker Secrets directory (tracked via .gitkeep)
-│       └── .gitkeep        # Git keep marker (password files are gitignored)
-├── image/                  # Container build context and assets
-│   ├── VERSION             # Semantic application version file (e.g. 1.0.0)
-│   ├── Dockerfile          # Alpine Linux image with nut, nss-tools, msmtp, libusb
-│   ├── entrypoint.sh       # Entrypoint: TLS setup, dynamic users, msmtp config, daemon launch
-│   ├── smtp_configs/       # Universal SMTP templates (gmail, outlook, local, custom)
-│   │   ├── gmail.conf      # Google Gmail template (port 587, STARTTLS, App Password)
-│   │   ├── outlook.conf    # Microsoft Outlook / Office 365 template (port 587, STARTTLS)
-│   │   ├── local.conf      # Local LAN SMTP relay template (port 25, no auth)
-│   │   └── custom.conf.example # Custom SMTP provider template
-│   ├── alerts/             # Pure key-value localization dictionaries (.lang)
-│   │   ├── it.lang         # Italian alert subjects, messages, and telemetry labels
-│   │   └── en.lang         # English alert subjects, messages, and telemetry labels
-│   └── scripts/            # Modular Unix notification architecture (container)
-│       ├── ups_notifier.sh # 1. Daemon: upsc polling, state transitions, threshold triggers
-│       ├── build_message.sh# 2. Builder: loads .lang, formats status and telemetry block
-│       ├── calculate_power.sh # 3. Telemetry: calculates real-time power (Watts) from metrics
-│       └── send_mail.sh    # 4. Delivery: reads from STDIN and sends via msmtp
-├── utils/                  # Administrator utility scripts (host)
-│   ├── setup.sh            # Main interactive TUI wizard (arrow-key navigation)
-│   ├── setup/              # Modular setup components
-│   │   ├── ui.sh           # ANSI terminal controls & arrow-key menu component
-│   │   ├── hardware.sh     # USB UPS hardware detection and identifier mapping
-│   │   ├── localization.sh # Alert language selection & friendly labels
-│   │   ├── nut_client.sh   # Client credentials for external integrations
-│   │   ├── smtp.sh         # Multi-provider SMTP configuration & credentials
-│   │   ├── secrets.sh      # Secure credential storage with root:root 400
-│   │   └── env_generator.sh# Generation of configs/.env and configs/ups.conf
-│   └── test_email.sh       # Instant email notification and telemetry test script
-└── README.md
-```
+- **Unprivileged Docker & Dynamic USB Re-enumeration**: Runs without `privileged: true`, using Linux cgroup rules (`c 189:* rmw`) so USB reboots and replug events are handled automatically without host `udev` scripts or container restarts.
+- **Universal USB HID Auto-Discovery**: Automatically detects USB HID Power Device Class UPS units during setup (`lsusb`) and reads live hardware metadata (`ups.mfr`, `ups.model`, active/nominal wattage) dynamically at runtime.
+- **Security by Default**:
+  - Passwords are stored exclusively in **Docker Secrets** (`configs/secrets/*.txt`, `chmod 400`) mounted into RAM — never in `.env` or Git.
+  - Auto-generated NSS **TLS** certificates encrypt client traffic on TCP port `3493`.
+  - Role-separated NUT accounts: a **Primary** account for host shutdown coordination and a read-only **Secondary** account for remote clients.
+- **Interactive TUI Setup Wizard**: Guided terminal setup (`sudo ./utils/setup.sh`) with arrow-key menus for UPS detection, Low Battery thresholds, alert language, NUT credentials, and SMTP configuration.
+- **Real-Time Localized Email Alerts**:
+  - Multi-provider SMTP support (built-in templates for Gmail and Outlook, plus custom/LAN SMTP relays or alerts disabled).
+  - Localized alert dictionaries (`en` and `it` included, easily extensible with zero image rebuild).
+  - Full event coverage:
+    - Power Outage (`blackout`) with live load, wattage, and estimated runtime
+    - Power Restored (`power_restored`) with computed outage duration
+    - Battery Discharge Thresholds (`70%`, `50%`, `35%`) with charging-deficit storm suppression
+    - Electrical Overload (`overload` / `overload_cleared`)
+    - Forced Shutdown (`fsd`)
+    - Post-FSD Power Restored (`fsd_power_restored`) with automatic post-reboot network/SMTP retry and mains stability verification
+- **Safe Host & UPS Power-Cycle Helper**: Includes `utils/host_shutdown.sh` to schedule delayed UPS outlet power-off (`offdelay`/`ondelay`) before halting the Docker host so systems power back on cleanly when mains returns.
 
 ---
 
-## 🔌 Supported UPS Hardware & Auto-Identification
+## Prerequisites
 
-The setup wizard (`sudo ./utils/setup.sh`) and container runtime support automatic discovery for any UPS hardware compliant with the standard **USB HID Power Device Class** specification (using NUT's `usbhid-ups` driver).
-
-### Automatically Identified Brands & Models
-
-| Manufacturer | Vendor ID (`vendorid`) | Default Identifier | Supported Product Lines |
-| :--- | :---: | :---: | :--- |
-| **APC (Schneider Electric)** | `051d` | `apc` | Back-UPS (BX, BK, BR, Pro, XS series), Smart-UPS (SMT, SMX, SMC series) |
-| **Eaton** | `0463` | `eaton` | 3S, 5S, 5SC, 5P, 5PX, 9SX, 9PX, Ellipse ECO, Ellipse PRO series |
-| **CyberPower** | `0764` | `cyberpower` | CP, PR, BR, Value, UT, PFC Sinewave, OR, OLS series |
-| **Powercom** | `0d9f` | `ups` | Imperial (IMP), King (KIN), BNT, Raptor (RPT), Spider (SPD) series |
-| **Tripp Lite** | `09ae` | `ups` | SMART, ECO, OMNI, AVR series (USB HID models) |
-| **Riello UPS** | `04b4` / `ffff` | `ups` | iDialog (IDG), Net Dialog (NDG) via USB HID |
-| **Legrand / Keor** | `0463` / generic | `ups` | Keor SP, Keor PDU, Daker DK series |
-| **PowerWalker / BlueWalker** | `06da` / `05b8` | `ups` | VI, VFD, VFI series (USB HID models) |
-| **Generic USB HID UPS** | *Auto-detected* | `ups` | Any UPS identifying as `Uninterruptible Power Supply` on the USB bus |
-
-### How Auto-Identification Works
-
-1. **Hardware Scanning (`utils/setup/hardware.sh`)**:
-   - Queries `lsusb` across all USB buses.
-   - Extracts the exact device vendor ID and manufacturer description.
-   - Intelligently assigns a clean vendor identifier (`apc`, `eaton`, `cyberpower`, `ups`) while allowing custom naming.
-   - Generates the matching `configs/ups.conf` configuration automatically.
-2. **Dynamic Runtime Telemetry (`build_message.sh` & `ups_notifier.sh`)**:
-   - Discovers device metadata (`ups.mfr`, `ups.model`) directly from NUT descriptors.
-   - Automatically determines active real-time power (Watts) using hardware readings (`ups.realpower`) or calculates it dynamically from the manufacturer's rated nominal capacity (`ups.realpower.nominal`) and load percentage (`ups.load`), with zero hardcoded values.
+- Linux host with **Docker** and **Docker Compose** (`docker compose`)
+- A **USB HID-compliant UPS** connected to the host via USB
+- *(Optional, for automated OS shutdown)* `nut-client` installed on the host and any remote machines you want to shut down automatically
 
 ---
 
-## 🚀 Quickstart Installation Guide
+## Quick Start
 
-### Step 1: Initial Setup
+### 1. Clone and Configure
 
-#### Option A: Interactive Wizard (Recommended)
-Run the automated modular setup wizard (requires root to protect secret files):
+#### Option A: Interactive Setup Wizard (Recommended)
+
+Run the guided configuration wizard (requires `sudo` to enforce `root:root 400` permissions on Docker Secret files):
+
 ```bash
 sudo ./utils/setup.sh
 ```
-The wizard features interactive arrow-key selection (`↑`/`↓` and `Enter`), auto-detects your connected USB UPS via `lsusb`, lets you choose your alert language and SMTP provider, writes `configs/.env`, generates `configs/ups.conf`, and stores protected credentials in `configs/secrets/`.
 
-#### Option B: Manual Setup
-If you prefer manual configuration without running the wizard:
+The wizard scans for your connected USB UPS, configures Low Battery safety thresholds, alert language, NUT Primary/Secondary credentials, and SMTP settings, then generates `configs/.env`, `configs/ups.conf`, and `configs/secrets/*.txt`.
+
+#### Option B: Manual Configuration
+
 ```bash
-# 1. Copy environment template and customize parameters
+# 1. Copy the environment template and edit your settings
 cp configs/.env.example configs/.env
 nano configs/.env
 
-# 2. Store passwords in secrets files (folder already tracked via .gitkeep)
-printf "%s" "your_nut_client_password" > configs/secrets/nut_password.txt
-printf "%s" "your_smtp_app_password" > configs/secrets/smtp_password.txt
+# 2. Create your configs/ups.conf driver definition (example)
+cat <<'EOF' > configs/ups.conf
+maxretry = 3
+retrydelay = 5
 
-# 3. Secure file permissions
+[ups]
+    driver = usbhid-ups
+    port = auto
+    pollinterval = 2
+    ignorelb
+    override.battery.charge.low = 30
+    override.battery.runtime.low = 300
+    offdelay = 60
+    ondelay = 70
+EOF
+
+# 3. Store passwords in Docker Secret files
+printf "%s" "your_primary_password"   > configs/secrets/nut_password.txt
+printf "%s" "your_secondary_password" > configs/secrets/nut_secondary_password.txt
+printf "%s" "your_smtp_password"      > configs/secrets/smtp_password.txt
+
+# 4. Lock down permissions
 chmod 600 configs/.env
 chmod 400 configs/secrets/*.txt
 ```
 
----
+### 2. Start the NUT Server
 
-### Step 2: Start the NUT Server
-
-Launch the container stack:
 ```bash
 docker compose up -d --build
 ```
-The container automatically connects to the UPS via dynamic Linux cgroup rules without requiring static USB device path pinning or host restarts.
 
----
+### 3. Verify Telemetry & Email Alerts
 
-### Step 3: Test Email Notifications (Optional)
+Check live metrics from the connected UPS:
 
-Verify SMTP authentication and live UPS telemetry delivery without pulling the power plug:
+```bash
+docker compose exec nut-server /bin/sh -c 'upsc $UPS_NAME@localhost'
+```
+
+Send a live test alert email (or inspect dry-run output if SMTP is disabled):
+
 ```bash
 ./utils/test_email.sh
+# Or override the recipient for a one-off test:
+./utils/test_email.sh admin@example.com
 ```
-*(You can also test delivery to a custom address: `./utils/test_email.sh custom@domain.com`)*.
 
 ---
 
-## 🌍 Localization & Adding Languages
+## Configuration Reference (`configs/.env`)
 
-Language and friendly names are chosen interactively during Step 1 (`sudo ./utils/setup.sh`) or via `configs/.env`:
-- `ALERT_LANG`: Active notification language (`en` or `it` provided by default, defaults to `en`).
-- `UPS_FRIENDLY_NAME`: Custom label (e.g. `"Home UPS"`, `"Lab UPS"`) displayed in alert subjects.
-- **Automatic Fallback**: If an unsupported language code is specified, the system automatically falls back to English (`en`) with a console notice.
-
-### Adding a New Language (e.g. German, French, Spanish)
-To add a new language without rebuilding the Docker container:
-1. Copy `image/alerts/en.lang` to your new language code (e.g. `image/alerts/de.lang`).
-2. Translate the key-value dictionary values.
-3. Set `ALERT_LANG=de` in `configs/.env`.
-## 💻 Connecting Network Clients
-
-To safely shut down other machines (Proxmox nodes, TrueNAS systems, Home Assistant, Linux servers) during extended power outages:
-
-### Linux Clients (Debian, Ubuntu, Proxmox)
-1. Install client package:
-   ```bash
-   sudo apt update && sudo apt install nut-client
-   ```
-2. In `/etc/nut/nut.conf`:
-   ```ini
-   MODE=netclient
-   ```
-3. In `/etc/nut/upsmon.conf`:
-   ```ini
-   MONITOR <ups_name>@<DOCKER_HOST_IP> 1 <API_USER> <API_PASSWORD> secondary
-   SHUTDOWNCMD "/sbin/shutdown -h +0"
-   POWERDOWNFLAG /etc/killpower
-   ```
-   > **Parameters**:
-   > - `<ups_name>`: UPS identifier configured in `configs/.env` (`UPS_NAME`) and `configs/ups.conf` (e.g. `apc` or `ups`).
-   > - `<API_USER>`: Client username configured in `configs/.env` (`API_USER`, default `upsmon`).
-   > - `<API_PASSWORD>`: Client password stored in `configs/secrets/nut_password.txt`.
-   > *(Connections automatically use TLS to encrypt passwords and shutdown signals).*
-
-### Home Assistant
-1. Navigate to **Settings** > **Devices & services** > **Add Integration**.
-2. Search for **Network UPS Tools (NUT)**.
-3. Enter the Docker host IP address, port `3493`, `API_USER` (from `configs/.env`), and `API_PASSWORD` (from `configs/secrets/nut_password.txt`).
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `TZ` | `UTC` | Container timezone (e.g. `UTC`, `America/New_York`, `Europe/London`) |
+| `UPS_NAME` | `ups` | Internal NUT UPS identifier (must match `[<UPS_NAME>]` in `configs/ups.conf`) |
+| `UPS_FRIENDLY_NAME` | `Home UPS` | Human-readable label shown in email alert subjects |
+| `UPS_NOMINAL_WATTS` | *(auto)* | Optional fallback nominal power (Watts) if the UPS does not report `ups.realpower.nominal` via USB |
+| `ALERT_LANG` | `en` | Alert dictionary language code (`en`, `it`, or custom `.lang` file) |
+| `BATTERY_CHARGE_LOW` | `30` | Custom Low Battery (`LB`) trigger threshold (%) |
+| `BATTERY_RUNTIME_LOW` | `300` | Custom Low Battery (`LB`) remaining runtime threshold (seconds) |
+| `UPS_OFFDELAY` | `60` | Delay before UPS cuts outlet power after `shutdown.return` (seconds) |
+| `UPS_ONDELAY` | `70` | Delay before UPS restores outlets when mains returns (must be `> UPS_OFFDELAY`) |
+| `API_USER` | `upsmon` | Privileged **Primary** NUT username |
+| `SECONDARY_USER` | `upsmon_client` | Read-only **Secondary** NUT username |
+| `SMTP_PROVIDER` | `gmail` | Provider identifier (`gmail`, `outlook`, `custom`, or `none`) |
+| `SMTP_HOST` / `SMTP_PORT` | `smtp.gmail.com` / `587` | Outgoing SMTP server address and port |
+| `SMTP_TLS` / `SMTP_STARTTLS` / `SMTP_AUTH` | `on` | Transport security and SMTP authentication toggles (`on`/`off`) |
+| `SMTP_USER` | — | Outgoing sender address / SMTP login username |
+| `NOTIFICATION_EMAIL` | — | Default alert recipient email address |
+| `FSD_RECOVERY_STABLE_SEC` | `15` | Optional: continuous `OL` seconds required before post-FSD recovery email |
+| `FSD_RECOVERY_RETRY_INITIAL` / `_MAX` | `15` / `60` | Optional: exponential backoff range (seconds) for post-boot SMTP retries |
+| `FSD_RECOVERY_MAX_ATTEMPTS` | `1440` | Optional: maximum post-boot retry attempts before clearing recovery state |
 
 ---
 
-## 🧪 Useful Diagnostic Commands
+## Connecting Network Clients
 
-* **Inspect all live UPS telemetry metrics (over SSL)**:
-  ```bash
-  # Universal command (automatically uses UPS_NAME configured in configs/.env):
-  docker compose exec nut-server /bin/sh -c 'upsc $UPS_NAME@localhost'
+### 1. Primary Host (Bare-Metal Docker Host)
 
-  # Or specifying your UPS identifier explicitly (e.g. eaton, cyberpower, ups, upc):
-  docker compose exec nut-server upsc <UPS_NAME>@localhost
-  ```
+Install `nut-client` on the host running Docker so it coordinates network-wide Forced Shutdown (`FSD`) when Low Battery is reached:
 
-* **List all configured UPS devices on the server**:
-  ```bash
-  docker compose exec nut-server upsc -l localhost
-  ```
+```bash
+sudo apt update && sudo apt install nut-client
+```
 
-* **Inspect live notification daemon logs**:
-  ```bash
-  docker compose logs -f | grep NOTIFIER
-  ```
+Set `/etc/nut/nut.conf`:
+
+```ini
+MODE=netclient
+```
+
+Configure `/etc/nut/upsmon.conf`:
+
+```ini
+MONITOR <UPS_NAME>@127.0.0.1:3493 1 <API_USER> <PRIMARY_PASSWORD> primary
+MINSUPPLIES 1
+SHUTDOWNCMD "/path/to/ups_sharing/utils/host_shutdown.sh"
+FINALDELAY 60
+HOSTSYNC 15
+CERTVERIFY 0
+```
+
+> **Tip**: Verify `host_shutdown.sh` safely without powering off your machine:
+> ```bash
+> sudo ./utils/host_shutdown.sh --dry-run
+> ```
+
+### 2. Secondary Network Clients (Remote Servers, Workstations, NAS)
+
+On any remote machine powered by the same UPS, install `nut-client`, set `MODE=netclient` in `/etc/nut/nut.conf`, and add to `/etc/nut/upsmon.conf`:
+
+```ini
+MONITOR <UPS_NAME>@<DOCKER_HOST_IP>:3493 1 <SECONDARY_USER> <SECONDARY_PASSWORD> secondary
+SHUTDOWNCMD "/sbin/shutdown -h +0"
+CERTVERIFY 0
+```
+
+- Replace `<UPS_NAME>`, `<DOCKER_HOST_IP>`, `<SECONDARY_USER>`, and `<SECONDARY_PASSWORD>` with your values from `configs/.env` and `configs/secrets/nut_secondary_password.txt`.
+- `CERTVERIFY 0` accepts the container's auto-generated self-signed NSS TLS certificate.
+- Any NUT-compatible monitoring dashboard or home automation integration can also connect to `<DOCKER_HOST_IP>:3493` using the **Secondary** credentials.
+
+---
+
+## Adding a New Alert Language
+
+To add another language without rebuilding the image:
+
+1. Copy `image/alerts/en.lang` to `image/alerts/<lang_code>.lang` (for example, `de.lang` or `fr.lang`).
+2. Translate the values on the right-hand side of each `KEY="value"` pair.
+3. Set `ALERT_LANG=<lang_code>` in `configs/.env` and restart the container.
+
+If an unknown language code is configured, the notification pipeline automatically falls back to English (`en.lang`).
+
+---
+
+## Useful Commands
+
+```bash
+# List all UPS devices exposed by the server
+docker compose exec nut-server upsc -l localhost
+
+# Inspect all live UPS telemetry metrics
+docker compose exec nut-server /bin/sh -c 'upsc $UPS_NAME@localhost'
+
+# Stream notification and recovery daemon logs
+docker compose logs -f | grep -E "NOTIFIER|FSD-RECOVERY|MAILER"
+
+# Check post-FSD recovery state
+docker compose exec nut-server /scripts/fsd_recovery.sh status
+
+# Run the automated unit & integration test suite
+./tests/run_tests.sh
+```
+
+---
+
+## Architecture & Development
+
+For a detailed technical breakdown of the security model, privilege separation, module structure, Unix notification pipeline, state machines, and FSD power-cycle sequence, see the dedicated **[Architecture Guide](ARCHITECTURE.md)**.
+
+---
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)** — see the [LICENSE](LICENSE) file for details.

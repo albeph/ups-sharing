@@ -11,6 +11,7 @@ SUBJECT_BATT_70="📉 [%s] Batteria scesa al 70%%"
 SUBJECT_BATT_50="⚠️ [%s] PRE-ALLARME: Batteria al 50%%"
 SUBJECT_BATT_35="🚨 [%s] ALLARME CRITICO: Batteria al 35%%"
 SUBJECT_FSD="🛑 [%s] COMANDO DI SPEGNIMENTO INIZIATO (FSD)"
+SUBJECT_FSD_POWER_RESTORED="✅ [%s] CORRENTE RIPRISTINATA DOPO SPEGNIMENTO (Sistema Riavviato)"
 SUBJECT_OVERLOAD="⚠️ [%s] ALLARME: SOVRACCARICO ELETTRICO (Overload)"
 SUBJECT_OVERLOAD_CLEARED="✅ [%s] Sovraccarico Elettrico Rientrato"
 SUBJECT_TEST="🧪 [TEST] Notifica di Prova: %s"
@@ -32,6 +33,13 @@ I server e le macchine collegate avvieranno a breve la sequenza di sicurezza."
 
 MSG_FSD="È stato impartito il comando di spegnimento controllato (Forced Shutdown).
 Tutti i computer e server in rete collegati all'UPS si stanno arrestando in sicurezza."
+
+MSG_FSD_POWER_RESTORED="L'alimentazione elettrica di rete è stata ripristinata e il sistema si è riavviato correttamente dopo lo spegnimento controllato (FSD).
+L'UPS è tornato in modalità ONLINE e il monitoraggio è nuovamente attivo."
+LABEL_FSD_TIME="Precedente comando di spegnimento (FSD): %s"
+LABEL_OUTAGE_DURATION_UNKNOWN="Durata black-out: non determinabile (orologio di sistema in sincronizzazione)"
+LABEL_FSD_CYCLES="Nota: si sono verificati %s cicli consecutivi di spegnimento prima che la corrente si stabilizzasse."
+MSG_RECHARGE_DEFICIT_WARN="⚠️ Attenzione: la batteria dell'UPS è ancora in ricarica (%s%%). L'autonomia è temporaneamente ridotta in caso di nuovo black-out."
 
 MSG_OVERLOAD="ATTENZIONE: rilevato un sovraccarico elettrico!
 La potenza richiesta dai dispositivi collegati supera la capacità massima supportata.
